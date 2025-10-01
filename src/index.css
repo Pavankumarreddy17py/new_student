@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-color: #4361ee;
+  --secondary-color: #3a0ca3;
+  --accent-color: #f72585;
+  --light-color: #f8f9fa;
+  --dark-color: #212529;
+  --success-color: #4cc9f0;
+  --warning-color: #f8961e;
+  --info-color: #4895ef;
+  --border-radius: 8px;
+  --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --transition: all 0.3s ease;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  color: var(--dark-color);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--secondary-color);
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-lg p-8 shadow-md transition-all duration-300 border border-gray-100;
+  }
+  
+  .card:hover {
+    @apply transform -translate-y-1 shadow-lg;
+  }
+  
+  .form-group {
+    @apply mb-5;
+  }
+  
+  .form-label {
+    @apply block mb-2 font-medium text-gray-700;
+  }
+  
+  .form-input {
+    @apply w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-base;
+  }
+  
+  .btn {
+    @apply inline-flex items-center justify-center px-6 py-3 rounded-lg font-medium text-base transition-all cursor-pointer;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-white hover:bg-primary-dark shadow-md hover:shadow-lg;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-white hover:bg-secondary-dark shadow-md hover:shadow-lg;
+  }
+  
+  .btn-accent {
+    @apply bg-accent text-white hover:bg-accent-dark shadow-md hover:shadow-lg;
+  }
+  
+  .btn-success {
+    @apply bg-success text-white hover:bg-success-dark shadow-md hover:shadow-lg;
+  }
+}
