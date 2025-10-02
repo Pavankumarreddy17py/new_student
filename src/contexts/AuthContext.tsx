@@ -1,3 +1,5 @@
+// pavankumarreddy17py/new_student/new_student-5dd13c6c821a0a0acaddaf6bb02e8aacbb5e6068/src/contexts/AuthContext.tsx
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import api from '../services/api';
 import { semesterSubjects } from '../data/subjects'; // Import subjects data for subject list retrieval

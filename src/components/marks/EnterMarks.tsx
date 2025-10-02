@@ -1,88 +1,130 @@
-import React, { useState, useEffect } from 'react';
+// pavankumarreddy17py/new_student/new_student-5dd13c6c821a0a0acaddaf6bb02e8aacbb5e6068/src/components/marks/EnterMarks.tsx
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { Save, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { semesterSubjects } from '../../data/subjects';
+import { semesterSubjects, SubjectMaxMarks } from '../../data/subjects';
 import SubjectInput from './SubjectInput';
 import api from '../../services/api';
-import { subjectIdMap } from '../../contexts/AuthContext'; // Import subjectIdMap
+import { subjectIdMap } from '../../contexts/AuthContext';
 
 // Interface for API response mark data
 interface ApiMark {
   subject_name: string;
-  marks: number;
+  internal_marks: number | null; 
+  external_marks: number | null; 
 }
+
+interface SubjectMarkSplit {
+    internal: number | '';
+    external: number | '';
+}
+
+const getSubjectMaxMarks = (semester: number, subject: string, isLab: boolean): SubjectMaxMarks => {
+  const config = semesterSubjects[semester];
+  const DEFAULT_MARKS: SubjectMaxMarks = { total: 100, internal: 30, external: 70, credits: isLab ? 1.5 : 3 };
+  if (!config) return DEFAULT_MARKS;
+  
+  const marks = isLab ? config.maxMarks.lab : config.maxMarks.subject;
+  
+  if (typeof marks === 'function') {
+    return marks(subject);
+  }
+  return (marks || DEFAULT_MARKS) as SubjectMaxMarks;
+};
 
 const EnterMarks: React.FC = () => {
   const [selectedSemester, setSelectedSemester] = useState(1);
-  const [marks, setMarks] = useState<Record<string, number>>({});
+  const [marks, setMarks] = useState<Record<string, SubjectMarkSplit>>({});
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Determine which semesters to show based on student ID prefix (year)
-  const getSemestersToShow = () => {
+  const getSemestersToShow = useCallback(() => {
     if (!user) return 0;
     
     const studentIdPrefix = user.id.substring(0, 2);
     
-    if (studentIdPrefix === '28') return 2; // 1st year
-    if (studentIdPrefix === '27') return 4; // 2nd year
-    if (studentIdPrefix === '26') return 6; // 3rd year
-    if (studentIdPrefix === '25') return 8; // 4th year
+    if (studentIdPrefix === '28') return 2;
+    if (studentIdPrefix === '27') return 4;
+    if (studentIdPrefix === '26') return 6;
+    if (studentIdPrefix === '25') return 8;
     
     return 0;
-  };
-  
+  }, [user]);
+
   const semestersToShow = getSemestersToShow();
+
+  const findApiMark = (apiMarks: ApiMark[], subjectSlug: string): ApiMark | undefined => {
+    return apiMarks.find(mark => mark.subject_name.toLowerCase().replace(/\s+/g, '-') === subjectSlug);
+  };
+
+  const loadMarks = async (semester: number) => {
+    if (!user) return;
+
+    try {
+      const response = await api.get(`/marks/${user.id}`);
+      const apiMarks: ApiMark[] = response.data;
+      
+      const semesterMarks: Record<string, SubjectMarkSplit> = {};
+      const semesterConfig = semesterSubjects[semester];
+
+      if (semesterConfig) {
+          const allSubjectSlugs = [
+              ...semesterConfig.subjects, 
+              ...(semesterConfig.labs || [])
+          ].map(s => s.toLowerCase().replace(/\s+/g, '-'));
+
+          allSubjectSlugs.forEach((subjectSlug) => {
+              const apiMarkEntry = findApiMark(apiMarks, subjectSlug);
+              
+              if (apiMarkEntry) {
+                  semesterMarks[subjectSlug] = { 
+                      internal: apiMarkEntry.internal_marks ?? 0, 
+                      external: apiMarkEntry.external_marks ?? 0
+                  };
+              } else {
+                  semesterMarks[subjectSlug] = { internal: '', external: '' };
+              }
+          });
+      }
+      
+      setMarks(semesterMarks);
+
+    } catch (error) {
+      console.error('Error fetching marks:', error);
+      setMarks({});
+    }
+  };
 
   useEffect(() => {
     loadMarks(selectedSemester);
   }, [selectedSemester, user]);
 
-  const loadMarks = async (semester: number) => {
-    if (!user) return;
-
-    // Fetch marks from the API
-    try {
-      const response = await api.get(`/marks/${user.id}`);
-      const apiMarks: ApiMark[] = response.data;
-      
-      const semesterMarks: Record<string, number> = {};
-      
-      apiMarks.forEach(mark => {
-        // Re-map the subject name from the API to the frontend's slug format
-        const subjectSlug = mark.subject_name.toLowerCase().replace(/\s+/g, '-');
-        
-        // Find if this mark belongs to the current semester
-        const semesterConfig = semesterSubjects[semester];
-        
-        const isSubject = semesterConfig?.subjects.some(s => s.toLowerCase().replace(/\s+/g, '-') === subjectSlug);
-        const isLab = semesterConfig?.labs?.some(l => l.toLowerCase().replace(/\s+/g, '-') === subjectSlug);
-
-        if (isSubject || isLab) {
-            semesterMarks[subjectSlug] = mark.marks;
-        }
-      });
-
-      setMarks(semesterMarks);
-
-    } catch (error) {
-      console.error('Error fetching marks:', error);
-      // Fallback to empty marks if API fails
-      setMarks({});
-    }
-  };
-
   const handleSemesterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedSemester(Number(e.target.value));
   };
 
-  const handleMarkChange = (key: string, value: number) => {
+  const handleMarkChange = (key: string, field: 'internal' | 'external', value: number | '') => {
+    const isLab = semesterSubjects[selectedSemester]?.labs?.some(l => l.toLowerCase().replace(/\s+/g, '-') === key);
+    const maxMarks = getSubjectMaxMarks(selectedSemester, key, isLab || false);
+
+    // Client-side validation to cap the mark
+    if (field === 'internal' && typeof value === 'number' && value > maxMarks.internal) {
+        value = maxMarks.internal;
+    }
+    if (field === 'external' && typeof value === 'number' && value > maxMarks.external) {
+        value = maxMarks.external;
+    }
+
     setMarks(prev => ({
       ...prev,
-      [key]: value
+      [key]: {
+        ...prev[key],
+        [field]: value
+      }
     }));
   };
 
@@ -93,32 +135,61 @@ const EnterMarks: React.FC = () => {
     
     setLoading(true);
     
-    // Prepare data for API call: map frontend slugs back to subject IDs
-    const marksForAPI: Record<string, number> = {};
+    const marksForAPI: Record<string, { internal: number, external: number }> = {};
 
-    for (const [key, mark] of Object.entries(marks)) {
-        const subjectId = subjectIdMap[key];
+    for (const [slug, markSplit] of Object.entries(marks)) {
+        const subjectId = subjectIdMap[slug];
+        
         if (subjectId) {
-            // Only send valid marks (0 to max)
-            if (mark !== null && mark !== undefined && mark >= 0) {
-                marksForAPI[subjectId] = mark;
+            // FIX: Ensure empty strings (user input) are converted to 0 for API call
+            const internal = typeof markSplit.internal === 'number' ? markSplit.internal : 0;
+            const external = typeof markSplit.external === 'number' ? markSplit.external : 0;
+
+            // Only send marks if at least one field has a value > 0
+            if (internal > 0 || external > 0) {
+                marksForAPI[subjectId] = { internal, external }; 
             }
         }
     }
     
     try {
-      await api.post(`/marks/${selectedSemester}`, {
+      const response = await api.post(`/marks/${selectedSemester}`, {
         studentId: user.id,
-        marks: marksForAPI
+        marks: marksForAPI 
       });
       
-      toast.success(`Marks for Semester ${selectedSemester} saved successfully!`);
-    } catch (error) {
+      toast.success(response.data.message || `Marks for Semester ${selectedSemester} saved successfully!`);
+      // Reload marks after successful save to update the view
+      loadMarks(selectedSemester);
+    } catch (error: any) {
       console.error('Error saving marks:', error);
-      toast.error('Failed to save marks');
+      toast.error(error.response?.data?.message || 'Failed to save marks. Check console for details.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const renderSubjectInputs = (subjects: string[], isLab: boolean) => {
+    return subjects.map((subject) => {
+      const subjectSlug = subject.toLowerCase().replace(/\s+/g, '-');
+      const maxMarks = getSubjectMaxMarks(selectedSemester, subject, isLab);
+
+      if (maxMarks.total === 0) return null;
+
+      return (
+        <SubjectInput
+          key={subject}
+          label={subject}
+          name={subjectSlug}
+          internalValue={marks[subjectSlug]?.internal ?? ''}
+          externalValue={marks[subjectSlug]?.external ?? ''}
+          onChange={handleMarkChange}
+          maxInternal={maxMarks.internal}
+          maxExternal={maxMarks.external}
+          isLab={isLab}
+        />
+      );
+    });
   };
 
   return (
@@ -149,20 +220,7 @@ const EnterMarks: React.FC = () => {
             </h3>
             
             <div className="space-y-4">
-              {semesterSubjects[selectedSemester]?.subjects.map((subject) => (
-                <SubjectInput
-                  key={subject}
-                  label={subject}
-                  // The name here is the slug, used as the key in the `marks` state
-                  name={subject.toLowerCase().replace(/\s+/g, '-')}
-                  value={marks[subject.toLowerCase().replace(/\s+/g, '-')] ?? ''}
-                  onChange={handleMarkChange}
-                  max={typeof semesterSubjects[selectedSemester].maxMarks.subject === 'function'
-                    ? semesterSubjects[selectedSemester].maxMarks.subject(subject)
-                    : semesterSubjects[selectedSemester].maxMarks.subject
-                  }
-                />
-              ))}
+              {semesterSubjects[selectedSemester]?.subjects && renderSubjectInputs(semesterSubjects[selectedSemester].subjects, false)}
             </div>
           </div>
           
@@ -173,17 +231,7 @@ const EnterMarks: React.FC = () => {
               </h3>
               
               <div className="space-y-4">
-                {semesterSubjects[selectedSemester].labs.map((lab) => (
-                  <SubjectInput
-                    key={lab}
-                    label={lab}
-                    name={lab.toLowerCase().replace(/\s+/g, '-')}
-                    value={marks[lab.toLowerCase().replace(/\s+/g, '-')] ?? ''}
-                    onChange={handleMarkChange}
-                    max={semesterSubjects[selectedSemester].maxMarks.lab}
-                    isLab={true}
-                  />
-                ))}
+                {renderSubjectInputs(semesterSubjects[selectedSemester].labs || [], true)}
               </div>
             </div>
           )}

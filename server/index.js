@@ -1,14 +1,15 @@
+// pavankumarreddy17py/new_student/new_student-5dd13c6c821a0a0acaddaf6bb02e8aacbb5e6068/server/index.js
+
 import express from 'express';
 import cors from 'cors';
 import pool from './db.js';
-import 'dotenv/config'; // Add this line to load .env file
-// ... rest of the file
+import 'dotenv/config'; 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// Auth routes
+// Auth routes (unchanged)
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { id, name, branch, password } = req.body;
@@ -54,58 +55,73 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-/// server/index.js (Modified section)
-
+// MARK: FINAL FIXED POST /api/marks/:semester
 app.post('/api/marks/:semester', async (req, res) => {
   try {
-    // Convert semester parameter to an integer immediately
     const semester = parseInt(req.params.semester, 10);
-    const { studentId, marks } = req.body;
+    const { studentId, marks } = req.body; 
     
-    // Start transaction
+    if (!studentId || !marks || Object.keys(marks).length === 0) {
+        return res.status(400).json({ message: 'Invalid mark submission data: Missing student ID or marks.' });
+    }
+
     const connection = await pool.getConnection();
-    await connection.beginTransaction();
     
     try {
-      // Delete existing marks for this semester
+      // 1. Begin Transaction
+      await connection.beginTransaction();
+
+      // 2. Delete existing marks for idempotency
       await connection.query(
         'DELETE FROM marks WHERE student_id = ? AND semester = ?',
-        [studentId, semester] // semester is now an integer
+        [studentId, semester]
       );
       
-      // Insert new marks
-      for (const [subjectIdString, mark] of Object.entries(marks)) {
-        // Convert the subjectId (which comes as a string key) to an integer
+      // 3. Insert new marks
+      for (const [subjectIdString, markSplit] of Object.entries(marks)) {
         const subjectId = parseInt(subjectIdString, 10);
+        
+        // Use property access with safe defaults and parseInt for strict integer conversion
+        const rawInternal = markSplit ? markSplit.internal : 0;
+        const rawExternal = markSplit ? markSplit.external : 0;
+        
+        // Math.max(0, ...) prevents negative values
+        const internal = Math.max(0, parseInt(rawInternal, 10) || 0);
+        const external = Math.max(0, parseInt(rawExternal, 10) || 0);
 
+        if (internal === 0 && external === 0) continue; // Skip if no mark was actually entered
+        
         await connection.query(
-          'INSERT INTO marks (student_id, subject_id, marks, semester) VALUES (?, ?, ?, ?)',
-          [studentId, subjectId, mark, semester] // subjectId and semester are now integers
+          'INSERT INTO marks (student_id, subject_id, internal_marks, external_marks, semester) VALUES (?, ?, ?, ?, ?)',
+          [studentId, subjectId, internal, external, semester]
         );
       }
       
+      // 4. Commit transaction
       await connection.commit();
       res.json({ message: 'Marks saved successfully' });
     } catch (error) {
+      // 5. Rollback on error
       await connection.rollback();
-      throw error;
+      // CRITICAL LOGGING: This prints the exact SQL error (e.g., Foreign Key failure)
+      console.error('CRITICAL SQL ERROR DURING MARKS INSERTION:', error); 
+      res.status(500).json({ message: 'Server error occurred during save. Check console for SQL details.' });
     } finally {
       connection.release();
     }
   } catch (error) {
-    console.error('Error saving marks:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error saving marks (Outer Catch):', error);
+    res.status(500).json({ message: 'Server error.' });
   }
 });
 
-// ... rest of the file
-
+// MARK: GET /api/marks/:studentId 
 app.get('/api/marks/:studentId', async (req, res) => {
   try {
     const { studentId } = req.params;
     
     const [marks] = await pool.query(
-      `SELECT m.*, s.name as subject_name, s.max_marks, s.is_lab 
+      `SELECT m.semester, m.internal_marks, m.external_marks, s.name as subject_name, s.max_marks, s.is_lab 
        FROM marks m 
        JOIN subjects s ON m.subject_id = s.id 
        WHERE m.student_id = ?`,

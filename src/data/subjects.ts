@@ -1,12 +1,55 @@
-export const semesterSubjects: {
-  [key: number]: {
-    subjects: string[];
-    labs?: string[];
-    maxMarks: {
-      subject: number | ((subject: string) => number);
-      lab: number;
-    };
+// pavankumarreddy17py/new_student/new_student-5dd13c6c821a0a0acaddaf6bb02e8aacbb5e6068/src/data/subjects.ts
+
+export interface SubjectMaxMarks {
+  total: number;
+  internal: number;
+  external: number;
+  credits: number;
+}
+
+export type SubjectConfig = {
+  subjects: string[];
+  labs?: string[];
+  maxMarks: {
+    subject: SubjectMaxMarks | ((subject: string) => SubjectMaxMarks);
+    lab: SubjectMaxMarks;
   };
+};
+
+// Standard marks for Semesters 1-7 Theory: Total 100, Internal 30, External 70, Credits 3
+const STANDARD_THEORY_MARKS: SubjectMaxMarks = {
+  total: 100,
+  internal: 30,
+  external: 70,
+  credits: 3
+};
+
+// Standard marks for All Labs: Total 100, Internal 30, External 70, Credits 1.5
+const STANDARD_LAB_MARKS: SubjectMaxMarks = {
+  total: 100,
+  internal: 30,
+  external: 70,
+  credits: 1.5
+};
+
+// Subjects with custom low max marks are assumed to be 100% Internal.
+const CUSTOM_30_MARKS: SubjectMaxMarks = {
+  total: 30,
+  internal: 30,
+  external: 0,
+  credits: 1.5 // Assuming 3 credits for these non-lab theory subjects
+};
+
+// Final Year (Sem 8) Project: Total 200, Internal 60, External 140
+const PROJECT_200_MARKS: SubjectMaxMarks = {
+  total: 200,
+  internal: 60,
+  external: 140,
+  credits: 12 // Assuming 3 credits for the project/internship as per the existing structure
+};
+
+export const semesterSubjects: {
+  [key: number]: SubjectConfig;
 } = {
   1: {
     subjects: [
@@ -22,7 +65,7 @@ export const semesterSubjects: {
       "ENGINEERING WORKSHOP",
       "C-PROGRAMMING & DATA STRUCTURES LAB"
     ],
-    maxMarks: { subject: 100, lab: 100 }
+    maxMarks: { subject: STANDARD_THEORY_MARKS, lab: STANDARD_LAB_MARKS }
   },
   2: {
     subjects: [
@@ -38,7 +81,7 @@ export const semesterSubjects: {
       "COMMUNICATIVE ENGLISH LAB",
       "PYTHON PROGRAMMING & DATA SCIENCE LAB"
     ],
-    maxMarks: { subject: 100, lab: 100 }
+    maxMarks: { subject: STANDARD_THEORY_MARKS, lab: STANDARD_LAB_MARKS }
   },
   3: {
     subjects: [
@@ -54,7 +97,7 @@ export const semesterSubjects: {
       "ADVANCED DATA STRUCTURES & ALGORITHMS LAB",
       "DIGITAL ELECTRONICS & MICROPROCESSORS LAB"
     ],
-    maxMarks: { subject: 100, lab: 100 }
+    maxMarks: { subject: STANDARD_THEORY_MARKS, lab: STANDARD_LAB_MARKS }
   },
   4: {
     subjects: [
@@ -75,11 +118,11 @@ export const semesterSubjects: {
     maxMarks: {
       subject: (subject: string) => {
         if (subject === "NSS/NCC/NSO ACTIVITIES" || subject === "DESIGN THINKING FOR INNOVATION") {
-          return 30;
+          return CUSTOM_30_MARKS; // Total 30, Internal 30, External 0, Credits 3
         }
-        return 100;
+        return STANDARD_THEORY_MARKS;
       },
-      lab: 100
+      lab: STANDARD_LAB_MARKS
     }
   },
   5: {
@@ -100,11 +143,11 @@ export const semesterSubjects: {
     maxMarks: {
       subject: (subject: string) => {
         if (subject === "ENVIRONMENTAL SCIENCE") {
-          return 30;
+          return CUSTOM_30_MARKS; // Total 30, Internal 30, External 0, Credits 3
         }
-        return 100;
+        return STANDARD_THEORY_MARKS;
       },
-      lab: 100
+      lab: STANDARD_LAB_MARKS
     }
   },
   6: {
@@ -125,11 +168,11 @@ export const semesterSubjects: {
     maxMarks: {
       subject: (subject: string) => {
         if (subject === "INTELLECTUAL PROPERTY RIGHTS & PATENTS") {
-          return 30;
+          return CUSTOM_30_MARKS; // Total 30, Internal 30, External 0, Credits 3
         }
-        return 100;
+        return STANDARD_THEORY_MARKS;
       },
-      lab: 100
+      lab: STANDARD_LAB_MARKS
     }
   },
   7: {
@@ -143,12 +186,16 @@ export const semesterSubjects: {
       "Evaluation of Industry Internship",
       "SOC-V Mobile Application Development"
     ],
-    maxMarks: { subject: 100, lab: 100 }
+    // Assuming these are standard theory subjects, credits for Internship Evaluation is 3.
+    maxMarks: { subject: STANDARD_THEORY_MARKS, lab: STANDARD_LAB_MARKS }
   },
   8: {
     subjects: [
       "Internship & Project"
     ],
-    maxMarks: { subject: 200, lab: 100 }
+    maxMarks: { 
+        subject: PROJECT_200_MARKS, // Total 200, Internal 60, External 140, Credits 3
+        lab: STANDARD_LAB_MARKS // No labs in Sem 8, but for type consistency
+    }
   }
 };
